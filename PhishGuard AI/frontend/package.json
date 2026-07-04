@@ -1,0 +1,30 @@
+{
+  "name": "phishguard-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "^15.0.3",
+    "react": "^19.0.0-rc-66a323b9-20241107",
+    "react-dom": "^19.0.0-rc-66a323b9-20241107",
+    "lucide-react": "^0.460.0",
+    "recharts": "^2.13.3",
+    "framer-motion": "^11.11.17",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.5.4",
+    "class-variance-authority": "^0.7.0"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1"
+  }
+}
