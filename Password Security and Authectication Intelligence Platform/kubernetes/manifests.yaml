@@ -1,0 +1,191 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cybersecurity-platform
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cyber-config
+  namespace: cybersecurity-platform
+data:
+  POSTGRES_SERVER: "db-service"
+  POSTGRES_USER: "postgres"
+  POSTGRES_DB: "cybersecurity_platform"
+  REDIS_HOST: "redis-service"
+  API_V1_STR: "/api/v1"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cyber-secrets
+  namespace: cybersecurity-platform
+type: Opaque
+data:
+  # Base64 encoded values for secrets:
+  # POSTGRES_PASSWORD: postgrespassword2026 -> cG9zdGdyZXNwYXNzd29yZDIwMjY=
+  # SECRET_KEY: SUPER_SECRET -> U1VQRVJfU0VDUkVU
+  POSTGRES_PASSWORD: cG9zdGdyZXNwYXNzd29yZDIwMjY=
+  SECRET_KEY: U1VQRVJfU0VDUkVU
+---
+# --- Redis Cache Deployment ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-deploy
+  namespace: cybersecurity-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: cybersecurity-platform
+spec:
+  ports:
+  - port: 6379
+  selector:
+    app: redis
+---
+# --- PostgreSQL DB Deployment ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db-deploy
+  namespace: cybersecurity-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      containers:
+      - name: db
+        image: postgres:15-alpine
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: cyber-config
+              key: POSTGRES_USER
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: cyber-config
+              key: POSTGRES_DB
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cyber-secrets
+              key: POSTGRES_PASSWORD
+        ports:
+        - containerPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db-service
+  namespace: cybersecurity-platform
+spec:
+  ports:
+  - port: 5432
+  selector:
+    app: db
+---
+# --- FastAPI Backend Deployment ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deploy
+  namespace: cybersecurity-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: cybersecurity-platform-backend:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: DATABASE_URL
+          value: "postgresql://postgres:postgrespassword2026@db-service:5432/cybersecurity_platform"
+        - name: REDIS_URL
+          value: "redis://redis-service:6379/0"
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: cyber-secrets
+              key: SECRET_KEY
+        ports:
+        - containerPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: cybersecurity-platform
+spec:
+  ports:
+  - port: 8000
+  selector:
+    app: backend
+---
+# --- NextJS Frontend Deployment ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deploy
+  namespace: cybersecurity-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: cybersecurity-platform-frontend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: cybersecurity-platform
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 3000
+  selector:
+    app: frontend
