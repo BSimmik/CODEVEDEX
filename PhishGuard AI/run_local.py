@@ -9,11 +9,7 @@ def run_command_in_dir(cmd, directory, shell=False):
     process = subprocess.Popen(
         cmd,
         cwd=directory,
-        shell=shell,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1
+        shell=shell
     )
     return process
 
