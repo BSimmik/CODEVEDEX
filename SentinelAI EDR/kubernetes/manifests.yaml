@@ -1,0 +1,158 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sentinel-postgres-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentinel-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sentinel-db
+  template:
+    metadata:
+      labels:
+        app: sentinel-db
+    spec:
+      containers:
+        - name: db
+          image: postgres:15-alpine
+          env:
+            - name: POSTGRES_USER
+              value: sentinel_admin
+            - name: POSTGRES_PASSWORD
+              value: sentinel_password_2026
+            - name: POSTGRES_DB
+              value: sentinel_edr
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: db-storage
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: db-storage
+          persistentVolumeClaim:
+            claimName: sentinel-postgres-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentinel-db-srv
+spec:
+  ports:
+    - port: 5432
+  selector:
+    app: sentinel-db
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentinel-redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sentinel-redis
+  template:
+    metadata:
+      labels:
+        app: sentinel-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentinel-redis-srv
+spec:
+  ports:
+    - port: 6379
+  selector:
+    app: sentinel-redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentinel-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sentinel-backend
+  template:
+    metadata:
+      labels:
+        app: sentinel-backend
+    spec:
+      containers:
+        - name: backend
+          image: sentinelai-backend:latest
+          env:
+            - name: DATABASE_URL
+              value: postgresql://sentinel_admin:sentinel_password_2026@sentinel-db-srv:5432/sentinel_edr
+            - name: REDIS_URL
+              value: redis://sentinel-redis-srv:6379/0
+            - name: JWT_SECRET
+              value: sentinel_jwt_secret_key_2026_super_secure
+          ports:
+            - containerPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentinel-backend-srv
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 8000
+      targetPort: 8000
+  selector:
+    app: sentinel-backend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentinel-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sentinel-frontend
+  template:
+    metadata:
+      labels:
+        app: sentinel-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: sentinelai-frontend:latest
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: http://sentinel-backend-srv:8000
+          ports:
+            - containerPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentinel-frontend-srv
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 3000
+  selector:
+    app: sentinel-frontend
